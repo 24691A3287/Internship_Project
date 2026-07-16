@@ -1,0 +1,287 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ORG_OWNER
+  ORG_ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum QRType {
+  URL
+  VCARD
+  WIFI
+  TEXT
+  EMAIL
+  PHONE
+  SMS
+  CRYPTO
+  LOCATION
+  EVENT
+}
+
+enum QRStyle {
+  STANDARD
+  ROUNDED
+  DOTS
+  CLASSY
+}
+
+enum ErrorCorrection {
+  L
+  M
+  Q
+  H
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
+model User {
+  id             String   @id @default(cuid())
+  clerkId        String   @unique
+  email          String   @unique
+  firstName      String?
+  lastName       String?
+  imageUrl       String?
+  role           UserRole @default(MEMBER)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  orgMemberships OrgMember[]
+  qrCodes        QRCode[]
+  folders        Folder[]
+  apiKeys        ApiKey[]
+  auditLogs      AuditLog[]
+
+  @@index([clerkId])
+  @@index([email])
+  @@map("users")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  clerkOrgId  String?  @unique
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  website     String?
+  description String?
+  plan        PlanType @default(FREE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  members      OrgMember[]
+  qrCodes      QRCode[]
+  folders      Folder[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+  subscription Subscription?
+
+  @@index([slug])
+  @@map("organizations")
+}
+
+model OrgMember {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String
+  role           OrgMemberRole @default(MEMBER)
+  joinedAt       DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("org_members")
+}
+
+model QRCode {
+  id                 String          @id @default(cuid())
+  shortCode          String          @unique @default(cuid())
+  name               String
+  description        String?
+  type               QRType          @default(URL)
+  content            String          // The encoded content (URL, vCard string, etc.)
+  destinationUrl     String?         // For dynamic URL QRs — the actual redirect destination
+  style              QRStyle         @default(STANDARD)
+  fgColor            String          @default("#000000")
+  bgColor            String          @default("#ffffff")
+  errorCorrection    ErrorCorrection @default(M)
+  logoUrl            String?         // Embedded logo URL
+  size               Int             @default(300)
+  margin             Int             @default(4)
+  isActive           Boolean         @default(true)
+  isDynamic          Boolean         @default(false)
+  totalScans         Int             @default(0)
+  uniqueScans        Int             @default(0)
+  lastScannedAt      DateTime?
+  folderId           String?
+  organizationId     String?
+  createdById        String
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  // Relations
+  folder       Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  scans        QRScan[]
+
+  @@index([shortCode])
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([folderId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("qr_codes")
+}
+
+model QRScan {
+  id         String   @id @default(cuid())
+  qrCodeId   String
+  ip         String?
+  userAgent  String?
+  country    String?
+  city       String?
+  region     String?
+  device     String?  // mobile, tablet, desktop
+  browser    String?
+  os         String?
+  referrer   String?
+  scannedAt  DateTime @default(now())
+
+  // Relations
+  qrCode QRCode @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeId])
+  @@index([scannedAt])
+  @@index([country])
+  @@index([device])
+  @@map("qr_scans")
+}
+
+model Folder {
+  id             String   @id @default(cuid())
+  name           String
+  color          String   @default("#6366f1")
+  organizationId String?
+  createdById    String
+  parentFolderId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  parent       Folder?       @relation("FolderHierarchy", fields: [parentFolderId], references: [id])
+  children     Folder[]      @relation("FolderHierarchy")
+  qrCodes      QRCode[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@map("folders")
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  name           String
+  keyHash        String    @unique // bcrypt hash of the key
+  keyPrefix      String    // first 8 chars for display
+  organizationId String
+  createdById    String
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  action         String   // CREATE_QR, DELETE_QR, INVITE_MEMBER, etc.
+  entityType     String   // QRCode, Organization, User, etc.
+  entityId       String?
+  userId         String?
+  organizationId String?
+  metadata       Json?    // additional context
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  // Relations
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  organizationId       String    @unique
+  plan                 PlanType  @default(FREE)
+  status               String    @default("active") // active, cancelled, past_due
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("subscriptions")
+}
