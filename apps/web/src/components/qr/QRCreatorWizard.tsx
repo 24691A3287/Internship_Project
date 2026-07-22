@@ -29,13 +29,13 @@ const QR_TYPE_OPTIONS = [
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.string().default('URL'),
+  type: z.string(),
   content: z.string().min(1, 'Content is required'),
-  fgColor: z.string().default('#000000'),
-  bgColor: z.string().default('#ffffff'),
-  size: z.number().default(300),
-  margin: z.number().default(4),
-  isDynamic: z.boolean().default(false),
+  fgColor: z.string(),
+  bgColor: z.string(),
+  size: z.number(),
+  margin: z.number(),
+  isDynamic: z.boolean(),
 })
 
 type FormValues = z.infer<typeof schema>

@@ -4,6 +4,7 @@ import { qrApi } from '@/lib/api'
 import { toast } from 'sonner'
 
 interface QRFilters {
+  [key: string]: any
   search?: string
   type?: string
   folderId?: string
