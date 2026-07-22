@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: { allowedOrigins: ['localhost:3000'] },
   },
+  async rewrites() {
+    return [
+      {
+        source: '/r/:shortCode',
+        destination: `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}/api/v1/qrcodes/r/:shortCode`,
+      },
+    ]
+  },
 }
 
 export default nextConfig

@@ -237,8 +237,8 @@ export async function redirectQRCode(req: Request, res: Response): Promise<void>
             data: { totalScans: { increment: 1 }, lastScannedAt: new Date() },
           }),
         ])
-      } catch {
-        /* Non-critical */
+      } catch (err) {
+        console.error('Failed to track scan:', err)
       }
     })
 
